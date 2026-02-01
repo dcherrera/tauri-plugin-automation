@@ -89,19 +89,22 @@ export function initAutomation(): void {
   console.log('[Automation] Ready. HTTP API available at http://localhost:9876')
 }
 
+// html2canvas function type
+type Html2CanvasFn = (element: HTMLElement, options?: Record<string, unknown>) => Promise<HTMLCanvasElement>
+
 /**
  * Dynamically load html2canvas from CDN
  */
-async function loadHtml2Canvas(): Promise<typeof import('html2canvas').default> {
-  if ((window as unknown as { html2canvas?: unknown }).html2canvas) {
-    return (window as unknown as { html2canvas: typeof import('html2canvas').default }).html2canvas
+async function loadHtml2Canvas(): Promise<Html2CanvasFn> {
+  if ((window as unknown as { html2canvas?: Html2CanvasFn }).html2canvas) {
+    return (window as unknown as { html2canvas: Html2CanvasFn }).html2canvas
   }
 
   return new Promise((resolve, reject) => {
     const script = document.createElement('script')
     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
     script.onload = () => {
-      const h2c = (window as unknown as { html2canvas: typeof import('html2canvas').default }).html2canvas
+      const h2c = (window as unknown as { html2canvas: Html2CanvasFn }).html2canvas
       if (h2c) {
         resolve(h2c)
       } else {

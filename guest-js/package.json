@@ -5,12 +5,19 @@
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch"
   },
-  "keywords": ["tauri", "automation", "testing"],
+  "keywords": [
+    "tauri",
+    "automation",
+    "testing"
+  ],
   "author": "Corey Herrera",
   "license": "SEE LICENSE IN ../LICENSE",
   "repository": {
@@ -26,6 +33,7 @@
   },
   "devDependencies": {
     "@tauri-apps/api": "^1.5.0",
+    "@types/html2canvas": "^0.5.35",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0"
   }
