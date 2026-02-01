@@ -2,7 +2,7 @@
  * Tauri Automation Service
  *
  * Provides automation capabilities for external testing tools.
- * Supports both Tauri v1 and v2.
+ * Supports both Tauri v1 (@tauri-apps/api/tauri) and v2 (@tauri-apps/api/core).
  */
 
 import { commands, type CommandArgs, type CommandResult } from './commands'
@@ -24,12 +24,16 @@ export interface AutomationService {
 
 /**
  * Detect Tauri version and get the invoke function
+ * Supports both Tauri v1 and v2
  */
 async function getInvoke(): Promise<(cmd: string, args?: Record<string, unknown>) => Promise<unknown>> {
   // Tauri v2: uses @tauri-apps/api/core
   try {
-    const core = await import('@tauri-apps/api/core')
+    // Dynamic import with variable to avoid TypeScript module resolution
+    const v2Module = '@tauri-apps/api/core'
+    const core = await import(/* webpackIgnore: true */ v2Module) as { invoke?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> }
     if (core.invoke) {
+      console.log('[Automation] Using Tauri v2 API')
       return core.invoke
     }
   } catch {
@@ -38,23 +42,27 @@ async function getInvoke(): Promise<(cmd: string, args?: Record<string, unknown>
 
   // Tauri v1: uses @tauri-apps/api/tauri
   try {
-    const tauri = await import('@tauri-apps/api/tauri')
+    // Dynamic import with variable to avoid TypeScript module resolution
+    const v1Module = '@tauri-apps/api/tauri'
+    const tauri = await import(/* webpackIgnore: true */ v1Module) as { invoke?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> }
     if (tauri.invoke) {
+      console.log('[Automation] Using Tauri v1 API')
       return tauri.invoke
     }
   } catch {
     // Not Tauri v1
   }
 
-  // Fallback: try window.__TAURI__ (older versions)
+  // Fallback: try window.__TAURI__ (works with both versions)
   if (window.__TAURI__) {
     const t = window.__TAURI__ as { invoke?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> }
     if (t.invoke) {
+      console.log('[Automation] Using window.__TAURI__ fallback')
       return t.invoke
     }
   }
 
-  throw new Error('Tauri invoke not available')
+  throw new Error('Tauri invoke not available - ensure @tauri-apps/api v1 or v2 is installed')
 }
 
 /**

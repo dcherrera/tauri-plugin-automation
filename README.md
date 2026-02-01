@@ -2,7 +2,8 @@
 
 HTTP automation server for Tauri apps. Enables external control and automated testing.
 
-**Supports both Tauri v1 and v2.**
+**Rust crate:** Tauri v2 only
+**JavaScript API:** Supports both Tauri v1 and v2
 
 ## Why?
 
@@ -21,14 +22,12 @@ Tauri's WebDriver support doesn't work on macOS (WKWebView lacks a driver). This
 ### Rust (Cargo.toml)
 
 ```toml
-# For Tauri v2 (default)
 [dependencies]
 tauri-plugin-automation-server = { git = "https://github.com/dcherrera/tauri-plugin-automation" }
-
-# For Tauri v1
-[dependencies]
-tauri-plugin-automation-server = { git = "https://github.com/dcherrera/tauri-plugin-automation", default-features = false, features = ["tauri-v1"] }
 ```
+
+> **Note:** The Rust crate requires Tauri v2. For Tauri v1 projects, you can still use the JavaScript API
+> which auto-detects the Tauri version, but the Rust HTTP server won't be available.
 
 ### Rust (main.rs)
 
@@ -182,9 +181,8 @@ cargo build --features automation
 ## Changelog
 
 ### v0.2.0
-- Added Tauri v2 support (now default)
-- Added feature flags: `tauri-v1`, `tauri-v2`
-- Updated JS to auto-detect Tauri version
+- **Breaking:** Rust crate now requires Tauri v2 (Cargo can't have both v1 and v2 due to native lib conflicts)
+- JavaScript API auto-detects Tauri version (works with both v1 and v2)
 - Added `initAutomationSync()` for boot files
 
 ### v0.1.0

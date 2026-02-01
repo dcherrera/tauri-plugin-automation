@@ -1,9 +1,15 @@
 //! Tauri Automation Plugin
 //!
-//! Provides HTTP API for external automation of the application.
+//! Provides HTTP API for external automation of Tauri v2 applications.
 //! Enables Claude Code and other tools to control Tauri apps for testing.
 //!
+//! **Note:** Rust crate supports Tauri v2 only. The JavaScript API supports both v1 and v2.
+//!
 //! ## Usage
+//!
+//! ```toml
+//! tauri-plugin-automation-server = { git = "https://github.com/dcherrera/tauri-plugin-automation" }
+//! ```
 //!
 //! ```rust,ignore
 //! tauri::Builder::default()
@@ -11,9 +17,6 @@
 //!         tauri_plugin_automation_server::start_server(app.handle().clone());
 //!         Ok(())
 //!     })
-//!     .invoke_handler(tauri::generate_handler![
-//!         tauri_plugin_automation_server::automation_screenshot_data,
-//!     ])
 //! ```
 
 pub mod server;
