@@ -23,6 +23,10 @@ Tauri's WebDriver support doesn't work on macOS (WKWebView lacks a driver). This
 
 ```toml
 [dependencies]
+# From crates.io
+tauri-plugin-automation-server = "0.2"
+
+# Or from git
 tauri-plugin-automation-server = { git = "https://github.com/dcherrera/tauri-plugin-automation" }
 ```
 
@@ -56,20 +60,23 @@ fn main() {
 }
 ```
 
-### JavaScript
+### JavaScript (npm)
 
-Copy `guest-js/src/` to your project, then initialize in your app:
+```bash
+npm install tauri-plugin-automation-api
+```
 
 ```typescript
-import { initAutomation } from './automation'
+import { initAutomation, initAutomationSync } from 'tauri-plugin-automation-api'
 
 // Async version (recommended)
 await initAutomation()
 
 // Or sync version for boot files
-import { initAutomationSync } from './automation'
 initAutomationSync()
 ```
+
+Alternatively, copy `guest-js/src/` to your project and import from there.
 
 ## API
 
