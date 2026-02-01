@@ -1,31 +1,16 @@
 //! HTTP server for automation commands
+//!
+//! Provides HTTP API on port 9876 for external automation.
 
-use std::io::Read;
-use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
-use tiny_http::{Server, Response, Header, Method};
+use tiny_http::{Header, Method, Response, Server};
+
+use crate::take_screenshot_data;
 
 const PORT: u16 = 9876;
 
-// Global screenshot buffer (simple approach without lazy_static)
-static SCREENSHOT_DATA: Mutex<Option<String>> = Mutex::new(None);
-
-pub fn set_screenshot_data(data: String) {
-    if let Ok(mut guard) = SCREENSHOT_DATA.lock() {
-        *guard = Some(data);
-    }
-}
-
-pub fn take_screenshot_data() -> Option<String> {
-    if let Ok(mut guard) = SCREENSHOT_DATA.lock() {
-        guard.take()
-    } else {
-        None
-    }
-}
-
-/// Start the HTTP server
-pub fn start_server(app_handle: AppHandle<tauri::Wry>) {
+/// Run the HTTP automation server
+pub fn run_server(app_handle: AppHandle) {
     let addr = format!("127.0.0.1:{}", PORT);
 
     let server = match Server::http(&addr) {
@@ -45,37 +30,19 @@ pub fn start_server(app_handle: AppHandle<tauri::Wry>) {
         println!("[Automation] {} {}", method, url);
 
         let response = match (&method, url.as_str()) {
-            // Health check
-            (&Method::Get, "/automation/health") => {
-                json_response(serde_json::json!({
-                    "status": "ok",
-                    "port": PORT,
-                    "version": "1.0.0"
-                }))
-            }
+            (&Method::Get, "/automation/health") => json_response(serde_json::json!({
+                "status": "ok",
+                "port": PORT,
+                "version": "0.2.0"
+            })),
 
-            // Execute command
-            (&Method::Post, "/automation/execute") => {
-                handle_execute(&app_handle, &mut request)
-            }
+            (&Method::Post, "/automation/execute") => handle_execute(&app_handle, &mut request),
 
-            // Screenshot
-            (&Method::Get, "/automation/screenshot") => {
-                handle_screenshot(&app_handle)
-            }
+            (&Method::Get, "/automation/screenshot") => handle_screenshot(&app_handle),
 
-            // CORS preflight
-            (&Method::Options, _) => {
-                cors_response()
-            }
+            (&Method::Options, _) => cors_response(),
 
-            // 404
-            _ => {
-                json_response_with_status(
-                    serde_json::json!({ "error": "Not found" }),
-                    404
-                )
-            }
+            _ => json_response_with_status(serde_json::json!({ "error": "Not found" }), 404),
         };
 
         if let Err(e) = request.respond(response) {
@@ -84,27 +51,24 @@ pub fn start_server(app_handle: AppHandle<tauri::Wry>) {
     }
 }
 
-/// Handle execute command request
 fn handle_execute(
-    app_handle: &AppHandle<tauri::Wry>,
+    app_handle: &AppHandle,
     request: &mut tiny_http::Request,
 ) -> Response<std::io::Cursor<Vec<u8>>> {
-    // Read body
     let mut body = String::new();
     if let Err(e) = request.as_reader().read_to_string(&mut body) {
         return json_response_with_status(
             serde_json::json!({ "error": format!("Failed to read body: {}", e) }),
-            400
+            400,
         );
     }
 
-    // Parse JSON
     let payload: serde_json::Value = match serde_json::from_str(&body) {
         Ok(v) => v,
         Err(e) => {
             return json_response_with_status(
                 serde_json::json!({ "error": format!("Invalid JSON: {}", e) }),
-                400
+                400,
             );
         }
     };
@@ -114,25 +78,23 @@ fn handle_execute(
         None => {
             return json_response_with_status(
                 serde_json::json!({ "error": "Missing 'command' field" }),
-                400
+                400,
             );
         }
     };
 
     let args = payload.get("args").cloned().unwrap_or(serde_json::json!({}));
 
-    // Get the main window
-    let window = match app_handle.get_window("main") {
+    let window = match app_handle.get_webview_window("main") {
         Some(w) => w,
         None => {
             return json_response_with_status(
                 serde_json::json!({ "error": "Main window not found" }),
-                500
+                500,
             );
         }
     };
 
-    // Build JavaScript to execute
     let args_json = serde_json::to_string(&args).unwrap_or_else(|_| "{}".to_string());
     let script = format!(
         r#"
@@ -149,22 +111,18 @@ fn handle_execute(
             }}
         }})();
         "#,
-        command,
-        args_json
+        command, args_json
     );
 
-    // Execute the script
     if let Err(e) = window.eval(&script) {
         return json_response_with_status(
             serde_json::json!({ "error": format!("Script execution failed: {}", e) }),
-            500
+            500,
         );
     }
 
-    // Wait a bit for async commands to complete
     std::thread::sleep(std::time::Duration::from_millis(100));
 
-    // Return success - the result is stored in the webview for debugging
     json_response(serde_json::json!({
         "success": true,
         "message": "Command executed",
@@ -172,19 +130,17 @@ fn handle_execute(
     }))
 }
 
-/// Handle screenshot request
-fn handle_screenshot(app_handle: &AppHandle<tauri::Wry>) -> Response<std::io::Cursor<Vec<u8>>> {
-    let window = match app_handle.get_window("main") {
+fn handle_screenshot(app_handle: &AppHandle) -> Response<std::io::Cursor<Vec<u8>>> {
+    let window = match app_handle.get_webview_window("main") {
         Some(w) => w,
         None => {
             return json_response_with_status(
                 serde_json::json!({ "error": "Main window not found" }),
-                500
+                500,
             );
         }
     };
 
-    // Request screenshot from JS
     let script = r#"
         (async function() {
             if (typeof window.__TAURI_AUTOMATION__ === 'undefined') {
@@ -202,26 +158,20 @@ fn handle_screenshot(app_handle: &AppHandle<tauri::Wry>) -> Response<std::io::Cu
     if let Err(e) = window.eval(script) {
         return json_response_with_status(
             serde_json::json!({ "error": format!("Screenshot request failed: {}", e) }),
-            500
+            500,
         );
     }
 
-    // Wait for JS to send the screenshot data
-    // html2canvas can take a while, especially on first load
     std::thread::sleep(std::time::Duration::from_millis(2000));
 
-    // Check if we have screenshot data
     if let Some(data_url) = take_screenshot_data() {
-        // Parse data URL: data:image/png;base64,....
         if let Some(base64_data) = data_url.strip_prefix("data:image/png;base64,") {
             match base64_decode(base64_data) {
-                Ok(bytes) => {
-                    return png_response(bytes);
-                }
+                Ok(bytes) => return png_response(bytes),
                 Err(e) => {
                     return json_response_with_status(
                         serde_json::json!({ "error": format!("Base64 decode failed: {}", e) }),
-                        500
+                        500,
                     );
                 }
             }
@@ -230,11 +180,10 @@ fn handle_screenshot(app_handle: &AppHandle<tauri::Wry>) -> Response<std::io::Cu
 
     json_response_with_status(
         serde_json::json!({ "error": "Screenshot not available. Make sure html2canvas is loaded." }),
-        500
+        500,
     )
 }
 
-/// Simple base64 decoder
 fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
     let input = input.trim();
     let chars: Vec<char> = input.chars().filter(|c| !c.is_whitespace()).collect();
@@ -250,7 +199,9 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
             break;
         }
 
-        let value = ALPHABET.iter().position(|&x| x == c as u8)
+        let value = ALPHABET
+            .iter()
+            .position(|&x| x == c as u8)
             .ok_or_else(|| format!("Invalid base64 character: {}", c))? as u32;
 
         buffer = (buffer << 6) | value;
@@ -266,13 +217,14 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
     Ok(output)
 }
 
-/// Create a JSON response
 fn json_response(data: serde_json::Value) -> Response<std::io::Cursor<Vec<u8>>> {
     json_response_with_status(data, 200)
 }
 
-/// Create a JSON response with status
-fn json_response_with_status(data: serde_json::Value, status: u16) -> Response<std::io::Cursor<Vec<u8>>> {
+fn json_response_with_status(
+    data: serde_json::Value,
+    status: u16,
+) -> Response<std::io::Cursor<Vec<u8>>> {
     let body = serde_json::to_vec(&data).unwrap_or_else(|_| b"{}".to_vec());
     let len = body.len();
     let cursor = std::io::Cursor::new(body);
@@ -282,7 +234,8 @@ fn json_response_with_status(data: serde_json::Value, status: u16) -> Response<s
         vec![
             Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
             Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap(),
-            Header::from_bytes(&b"Access-Control-Allow-Methods"[..], &b"GET, POST, OPTIONS"[..]).unwrap(),
+            Header::from_bytes(&b"Access-Control-Allow-Methods"[..], &b"GET, POST, OPTIONS"[..])
+                .unwrap(),
             Header::from_bytes(&b"Access-Control-Allow-Headers"[..], &b"Content-Type"[..]).unwrap(),
         ],
         cursor,
@@ -291,7 +244,6 @@ fn json_response_with_status(data: serde_json::Value, status: u16) -> Response<s
     )
 }
 
-/// Create a PNG response
 fn png_response(data: Vec<u8>) -> Response<std::io::Cursor<Vec<u8>>> {
     let len = data.len();
     let cursor = std::io::Cursor::new(data);
@@ -308,7 +260,6 @@ fn png_response(data: Vec<u8>) -> Response<std::io::Cursor<Vec<u8>>> {
     )
 }
 
-/// CORS preflight response
 fn cors_response() -> Response<std::io::Cursor<Vec<u8>>> {
     let cursor = std::io::Cursor::new(Vec::new());
 
@@ -316,7 +267,8 @@ fn cors_response() -> Response<std::io::Cursor<Vec<u8>>> {
         tiny_http::StatusCode(204),
         vec![
             Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap(),
-            Header::from_bytes(&b"Access-Control-Allow-Methods"[..], &b"GET, POST, OPTIONS"[..]).unwrap(),
+            Header::from_bytes(&b"Access-Control-Allow-Methods"[..], &b"GET, POST, OPTIONS"[..])
+                .unwrap(),
             Header::from_bytes(&b"Access-Control-Allow-Headers"[..], &b"Content-Type"[..]).unwrap(),
         ],
         cursor,

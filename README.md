@@ -2,6 +2,8 @@
 
 HTTP automation server for Tauri apps. Enables external control and automated testing.
 
+**Supports both Tauri v1 and v2.**
+
 ## Why?
 
 Tauri's WebDriver support doesn't work on macOS (WKWebView lacks a driver). This plugin provides a lightweight HTTP API alternative that works everywhere.
@@ -12,27 +14,43 @@ Tauri's WebDriver support doesn't work on macOS (WKWebView lacks a driver). This
 - **DOM commands**: click, type, getText, navigate, waitFor, etc.
 - **Screenshots**: Capture the current page as PNG
 - **Works on macOS**: No WebDriver needed
-- **Scriptable**: Perfect for automated testing tools
+- **Scriptable**: Perfect for automated testing tools and AI assistants
 
 ## Installation
 
-### Rust
-
-Add to your `Cargo.toml`:
+### Rust (Cargo.toml)
 
 ```toml
+# For Tauri v2 (default)
 [dependencies]
 tauri-plugin-automation-server = { git = "https://github.com/dcherrera/tauri-plugin-automation" }
+
+# For Tauri v1
+[dependencies]
+tauri-plugin-automation-server = { git = "https://github.com/dcherrera/tauri-plugin-automation", default-features = false, features = ["tauri-v1"] }
 ```
 
-Update your `main.rs`:
+### Rust (main.rs)
 
 ```rust
+use tauri_plugin_automation_server;
+
+// Define your own command that calls the plugin
+#[tauri::command]
+fn automation_screenshot_data(data: String) {
+    tauri_plugin_automation_server::set_screenshot_data(data);
+}
+
 fn main() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_automation_server::init())
+        .setup(|app| {
+            // Start automation server
+            tauri_plugin_automation_server::start_server(app.handle().clone());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
-            tauri_plugin_automation_server::automation_screenshot_data
+            automation_screenshot_data,
+            // ... your other commands
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -41,19 +59,17 @@ fn main() {
 
 ### JavaScript
 
-Copy `guest-js/src/` to your project, or install from npm (when published):
-
-```bash
-npm install tauri-plugin-automation-api
-```
-
-Initialize in your app entry point:
+Copy `guest-js/src/` to your project, then initialize in your app:
 
 ```typescript
-import { initAutomation } from './automation'  // or 'tauri-plugin-automation-api'
+import { initAutomation } from './automation'
 
-// After your app mounts
-initAutomation()
+// Async version (recommended)
+await initAutomation()
+
+// Or sync version for boot files
+import { initAutomationSync } from './automation'
+initAutomationSync()
 ```
 
 ## API
@@ -65,7 +81,7 @@ curl http://localhost:9876/automation/health
 ```
 
 ```json
-{"status": "ok", "port": 9876, "version": "1.0.0"}
+{"status": "ok", "port": 9876, "version": "0.2.0", "tauri": "v2"}
 ```
 
 ### Execute Command
@@ -155,13 +171,24 @@ This plugin opens an HTTP server on localhost. For production:
 ```toml
 [features]
 default = []  # Don't include automation by default
-automation = ["tauri-plugin-automation"]
+automation = ["tauri-plugin-automation-server"]
 ```
 
 2. Only enable when needed:
 ```bash
 cargo build --features automation
 ```
+
+## Changelog
+
+### v0.2.0
+- Added Tauri v2 support (now default)
+- Added feature flags: `tauri-v1`, `tauri-v2`
+- Updated JS to auto-detect Tauri version
+- Added `initAutomationSync()` for boot files
+
+### v0.1.0
+- Initial release (Tauri v1 only)
 
 ## License
 

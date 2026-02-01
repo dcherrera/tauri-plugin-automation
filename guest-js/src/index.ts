@@ -2,15 +2,16 @@
  * Tauri Automation Service
  *
  * Provides automation capabilities for external testing tools.
- * Only active in development builds.
+ * Supports both Tauri v1 and v2.
  */
 
-import { invoke } from '@tauri-apps/api/tauri'
 import { commands, type CommandArgs, type CommandResult } from './commands'
 
 declare global {
   interface Window {
     __TAURI_AUTOMATION__: AutomationService
+    __TAURI__?: unknown
+    __TAURI_INTERNALS__?: unknown
   }
 }
 
@@ -22,12 +23,54 @@ export interface AutomationService {
 }
 
 /**
+ * Detect Tauri version and get the invoke function
+ */
+async function getInvoke(): Promise<(cmd: string, args?: Record<string, unknown>) => Promise<unknown>> {
+  // Tauri v2: uses @tauri-apps/api/core
+  try {
+    const core = await import('@tauri-apps/api/core')
+    if (core.invoke) {
+      return core.invoke
+    }
+  } catch {
+    // Not Tauri v2
+  }
+
+  // Tauri v1: uses @tauri-apps/api/tauri
+  try {
+    const tauri = await import('@tauri-apps/api/tauri')
+    if (tauri.invoke) {
+      return tauri.invoke
+    }
+  } catch {
+    // Not Tauri v1
+  }
+
+  // Fallback: try window.__TAURI__ (older versions)
+  if (window.__TAURI__) {
+    const t = window.__TAURI__ as { invoke?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> }
+    if (t.invoke) {
+      return t.invoke
+    }
+  }
+
+  throw new Error('Tauri invoke not available')
+}
+
+/**
  * Initialize the automation service
  * Call this once when your app starts
- * Note: Automation is controlled by Rust feature flag, JS side always initializes
  */
-export function initAutomation(): void {
+export async function initAutomation(): Promise<void> {
   console.log('[Automation] Initializing...')
+
+  let invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>
+  try {
+    invoke = await getInvoke()
+  } catch (e) {
+    console.warn('[Automation] Tauri invoke not available, some features may not work:', e)
+    invoke = async () => { throw new Error('Tauri not available') }
+  }
 
   const service: AutomationService = {
     _lastResult: null,
@@ -57,7 +100,6 @@ export function initAutomation(): void {
      * Capture screenshot and return as data URL
      */
     async screenshot(): Promise<string> {
-      // Dynamically import html2canvas
       const html2canvas = await loadHtml2Canvas()
       const canvas = await html2canvas(document.body, {
         backgroundColor: '#121212',
@@ -89,6 +131,13 @@ export function initAutomation(): void {
   console.log('[Automation] Ready. HTTP API available at http://localhost:9876')
 }
 
+// Synchronous version for boot files that can't use async
+export function initAutomationSync(): void {
+  initAutomation().catch(e => {
+    console.error('[Automation] Failed to initialize:', e)
+  })
+}
+
 // html2canvas function type
 type Html2CanvasFn = (element: HTMLElement, options?: Record<string, unknown>) => Promise<HTMLCanvasElement>
 
@@ -117,3 +166,4 @@ async function loadHtml2Canvas(): Promise<Html2CanvasFn> {
 }
 
 export { commands } from './commands'
+export type { CommandArgs, CommandResult } from './commands'
