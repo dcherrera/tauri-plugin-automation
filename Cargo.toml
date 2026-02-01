@@ -1,0 +1,19 @@
+[package]
+name = "tauri-plugin-automation"
+version = "0.1.0"
+description = "HTTP automation server for Tauri apps - enables external control and automated testing"
+authors = ["Corey Herrera"]
+license-file = "LICENSE"
+repository = "https://github.com/dcherrera/tauri-plugin-automation"
+homepage = "https://github.com/dcherrera/tauri-plugin-automation"
+readme = "README.md"
+keywords = ["tauri", "automation", "testing", "webdriver"]
+categories = ["development-tools::testing", "gui"]
+edition = "2021"
+rust-version = "1.70"
+
+[dependencies]
+tauri = { version = "1.6", default-features = false }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tiny_http = "0.12"
