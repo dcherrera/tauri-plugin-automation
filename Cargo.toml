@@ -1,5 +1,5 @@
 [package]
-name = "tauri-plugin-automation"
+name = "tauri-plugin-automation-server"
 version = "0.1.0"
 description = "HTTP automation server for Tauri apps - enables external control and automated testing"
 authors = ["Corey Herrera"]

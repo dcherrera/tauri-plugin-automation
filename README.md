@@ -22,7 +22,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-tauri-plugin-automation = { git = "https://github.com/dcherrera/tauri-plugin-automation" }
+tauri-plugin-automation-server = { git = "https://github.com/dcherrera/tauri-plugin-automation" }
 ```
 
 Update your `main.rs`:
@@ -30,9 +30,9 @@ Update your `main.rs`:
 ```rust
 fn main() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_automation::init())
+        .plugin(tauri_plugin_automation_server::init())
         .invoke_handler(tauri::generate_handler![
-            tauri_plugin_automation::automation_screenshot_data
+            tauri_plugin_automation_server::automation_screenshot_data
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
