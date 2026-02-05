@@ -4,8 +4,6 @@ HTTP automation server for Tauri apps. Enables external control and automated te
 
 **Rust crate:** Tauri v2 only **JavaScript API:** Supports both Tauri v1 and v2
 
-this is a test of changes submodule 
-
 ## Why?
 
 Tauri's WebDriver support doesn't work on macOS (WKWebView lacks a driver). This plugin provides a lightweight HTTP API alternative that works everywhere.
